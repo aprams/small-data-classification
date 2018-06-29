@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import scipy.misc
 from keras.preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import train_test_split
+from keras.applications.vgg16 import preprocess_input
 np.random.seed(1337)
 
 
@@ -25,7 +26,7 @@ LEARNING_RATE = 1e-4
 SAVE_INTERVAL = 1000
 RECREATE_TFRECORDS = True
 IMAGE_SIZE = 224
-EPOCHS = 5
+EPOCHS = 50
 
 # Command line arguments
 parser = argparse.ArgumentParser()
@@ -55,10 +56,6 @@ DATA_BAD_DIR = os.path.join(TRAIN_DATA_DIR, "bad")
 input_shape = (IMAGE_SIZE, IMAGE_SIZE, 3)
 
 if __name__ == "__main__":
-
-    from keras.applications.vgg16 import preprocess_input
-
-    # KERAS HAS IMAGE.LOAD_IMG with resizing
     labels = []
     images = []
     for image_path in glob.glob(os.path.join(DATA_GOOD_DIR, "*.jpeg")):
@@ -78,7 +75,7 @@ if __name__ == "__main__":
 
     data_train, data_val, labels_train, labels_val = train_test_split(images, labels, test_size=0.10, random_state=42)
 
-    model = nail_model.get_model(input_shape)
+    model, graph = nail_model.get_model(input_shape)
 
     model.compile(loss='binary_crossentropy', optimizer=keras.optimizers.SGD(lr=LEARNING_RATE, momentum=0.9), metrics=['accuracy'])
     model.summary()
@@ -101,9 +98,8 @@ if __name__ == "__main__":
 
     if not os.path.exists(MODEL_FINAL_SAVE_DIR):
         os.mkdir(MODEL_FINAL_SAVE_DIR)
-    #model.save(os.path.join(MODEL_FINAL_SAVE_DIR, MODEL_FILENAME))
+
     model.save_weights('model_weights.h5')
     with open('model_architecture.json', 'w') as f:
         f.write(model.to_json())
-    print(model.to_json())
 

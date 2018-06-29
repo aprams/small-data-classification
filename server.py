@@ -8,9 +8,12 @@ import json
 from keras.preprocessing import image
 from flask import Flask, request, redirect, flash, url_for, Session
 from werkzeug.utils import secure_filename
+from keras.applications.vgg16 import preprocess_input
 
 
-UPLOAD_FOLDER = '/home/aprams/deevio-classification/uploads'
+UPLOAD_FOLDER = '/uploads'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.mkdir(UPLOAD_FOLDER)
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 DECISION_THRESHOLD = 0.5
 
@@ -20,20 +23,18 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SESSION_TYPE'] = 'filesystem'
 app.secret_key = '07145d5b193b4d3b909f218bccd65be7'
 
-model = nail_model.get_model((224, 224, 3))
+model, graph = nail_model.get_model((224, 224, 3), weights=None)
 model.load_weights(os.path.join(training.MODEL_FINAL_SAVE_DIR, training.MODEL_FILENAME))
 
 def predict(file_path):
     img = image.load_img(file_path, target_size=(224, 224))
     img = image.img_to_array(img)
     img = np.expand_dims(img, axis=0)
-    result = model.predict(img)
-    print(result)
-    print(result[0][0])
+    img = preprocess_input(img)
+    global graph
+    with graph.as_default():
+        result = model.predict(img)
     return result[0][0]
-
-predict("/home/aprams/deevio-classification/data/bad/1522072644_bad.jpeg")
-
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -45,7 +46,6 @@ def predict_endpoint():
     if request.method == 'GET':
         if 'image_url' in request.args:
             image_url = request.args['image_url']
-            print(image_url,  "SUCCESSFULLY EXTRACTED")
             filename = secure_filename(image_url[image_url.rfind("/")+1:])
             target_file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             urllib.request.urlretrieve(image_url, target_file_path)
@@ -59,7 +59,6 @@ def predict_endpoint():
 
 @app.route('/upload_predict', methods=['GET', 'POST'])
 def upload_file_endpoint():
-    print(request.args)
     if request.method == 'POST':
         # check if the post request has the file part
         if 'file' not in request.files:
@@ -91,4 +90,4 @@ def upload_file_endpoint():
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0')
