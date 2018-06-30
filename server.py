@@ -25,7 +25,6 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SESSION_TYPE'] = 'filesystem'
 app.secret_key = '07145d5b193b4d3b909f218bccd65be7'
 
-#model, graph = nail_model.get_model(training.IMAGE_SIZE, )
 top_model, graph = nail_model.get_top_model()
 top_model.load_weights(os.path.join(training.MODEL_FINAL_SAVE_DIR, training.MODEL_FILENAME))
 with graph.as_default():
@@ -33,15 +32,11 @@ with graph.as_default():
 
 
 def predict(file_path):
-    #img = image.load_img(file_path, target_size=(training.IMAGE_SIZE, training.IMAGE_SIZE))
-    #img = image.img_to_array(img)
     img = scipy.misc.imresize(plt.imread(file_path, format='jpeg'), (training.IMAGE_SIZE, training.IMAGE_SIZE))
     img = np.array(img, dtype=np.float32)
     img = np.stack((img,)*3, -1)
     img = np.expand_dims(img, axis=0)
     img = preprocess_input(img)
-    #img = preprocess_input(img)
-    global graph
     with graph.as_default():
         bottleneck_features = extractor_model.predict(img)
         result = top_model.predict(bottleneck_features)
