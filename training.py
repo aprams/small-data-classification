@@ -1,3 +1,4 @@
+import data_augment
 import nail_model
 import argparse
 import os
@@ -8,7 +9,7 @@ import matplotlib.pyplot as plt
 import scipy.misc
 from keras.preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import train_test_split
-from keras.applications.vgg16 import preprocess_input
+from keras.applications.mobilenet import preprocess_input
 np.random.seed(1337)
 
 
@@ -21,12 +22,13 @@ MODEL_FINAL_SAVE_DIR = "model"
 MODEL_FILENAME = "model.h5"
 
 # Training constants
-BATCH_SIZE = 8
-LEARNING_RATE = 1e-4
+BATCH_SIZE = 50
+LEARNING_RATE = 1e-2
 SAVE_INTERVAL = 1000
 RECREATE_TFRECORDS = True
-IMAGE_SIZE = 224
-EPOCHS = 50
+IMAGE_SIZE = 96
+EPOCHS = 5000
+AUGMENT_FACTOR = 0
 
 # Command line arguments
 parser = argparse.ArgumentParser()
@@ -53,47 +55,73 @@ print(args)
 DATA_GOOD_DIR = os.path.join(TRAIN_DATA_DIR, "good")
 DATA_BAD_DIR = os.path.join(TRAIN_DATA_DIR, "bad")
 
-input_shape = (IMAGE_SIZE, IMAGE_SIZE, 3)
+input_shape = (1000,)#(IMAGE_SIZE, IMAGE_SIZE, 3)
 
 if __name__ == "__main__":
-    labels = []
-    images = []
+    tmp_labels = []
+    tmp_images = []
     for image_path in glob.glob(os.path.join(DATA_GOOD_DIR, "*.jpeg")):
-        images += [scipy.misc.imresize(plt.imread(image_path, format='jpeg'), (IMAGE_SIZE, IMAGE_SIZE))]
-        labels += [1]
+        tmp_images += [scipy.misc.imresize(plt.imread(image_path, format='jpeg'), (IMAGE_SIZE, IMAGE_SIZE))]
+        tmp_labels += [1]
+
 
     for image_path in glob.glob(os.path.join(DATA_BAD_DIR, "*.jpeg")):
-        images += [scipy.misc.imresize(plt.imread(image_path, format='jpeg'), (IMAGE_SIZE, IMAGE_SIZE))]
-        labels += [0]
+        tmp_images += [scipy.misc.imresize(plt.imread(image_path, format='jpeg'), (IMAGE_SIZE, IMAGE_SIZE))]
+        tmp_labels += [0]
 
-    images = np.array(images)
-    images = np.stack((images,)*3, -1)
-    images = preprocess_input(images)
-    labels = np.array(labels)
+    images_train, images_val, labels_train, labels_val = train_test_split(tmp_images, tmp_labels, test_size=0.20, random_state=1)
 
-    print("Images shape:", images.shape)
+    aug_images = []
+    aug_labels = []
+    print(type(labels_train))
+    for i in range(AUGMENT_FACTOR):
+        aug_images += data_augment.seq.augment_images(images_train)
+        aug_labels.extend(labels_train)
+    if AUGMENT_FACTOR == 0:
+        aug_images = images_train
+        aug_labels = labels_train
+    images_train = aug_images
+    labels_train = aug_labels
 
-    data_train, data_val, labels_train, labels_val = train_test_split(images, labels, test_size=0.10, random_state=42)
+    images_train = np.array(images_train)
+    images_train = np.stack((images_train,)*3, -1)
+    images_train = preprocess_input(images_train)
+
+    images_val = np.array(images_val)
+    images_val = np.stack((images_val,)*3, -1)
+    images_val = preprocess_input(images_val)
+
+
+    #labels = keras.utils.np_utils.to_categorical(labels, 2)
+
+    extractor_model = keras.applications.MobileNetV2(weights="imagenet", alpha=0.35, include_top=True, input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3))
+    #extractor_model.summary()
+    model = keras.Model(inputs=extractor_model.input, outputs=extractor_model.get_layer('global_average_pooling2d_1').output)
+    bottleneck_features_train = model.predict(images_train)
+    bottleneck_features_val = model.predict(images_val)
+    print("Features shape:", bottleneck_features_train.shape)
+
 
     model, graph = nail_model.get_model(input_shape)
 
-    model.compile(loss='binary_crossentropy', optimizer=keras.optimizers.SGD(lr=LEARNING_RATE, momentum=0.9), metrics=['accuracy'])
-    model.summary()
+    model.compile(loss='binary_crossentropy', optimizer=keras.optimizers.SGD(lr=LEARNING_RATE, momentum=0.9, decay=1e-6, nesterov=True), metrics=['accuracy'])
+    #model.summary()
 
-    train_datagen = ImageDataGenerator(
-        shear_range=0.2,
-        zoom_range=0.2,
-        rotation_range=180,
-        horizontal_flip=True,
-        vertical_flip=True)
+    train_datagen = ImageDataGenerator()
+        #shear_range=0.2,
+        #zoom_range=0.2,
+        #rotation_range=180,
+        #horizontal_flip=True,
+        #vertical_flip=True)
     val_datagen = ImageDataGenerator()
 
-    train_generator = train_datagen.flow(data_train, labels_train, BATCH_SIZE)
-    val_generator = val_datagen.flow(data_val, labels_val, BATCH_SIZE)
-    model.fit_generator(
-        train_generator,
-        validation_data=val_generator,
-        steps_per_epoch=len(data_train)//BATCH_SIZE,
+    #train_generator = train_datagen.flow(data_train, labels_train, BATCH_SIZE)
+    #val_generator = val_datagen.flow(data_val, labels_val, BATCH_SIZE)
+    model.fit(
+        bottleneck_features_train,labels_train,
+        validation_data=(bottleneck_features_val, labels_val),
+        validation_steps=2,
+        steps_per_epoch=len(images_train)//BATCH_SIZE+1,
         epochs=EPOCHS)
 
     if not os.path.exists(MODEL_FINAL_SAVE_DIR):
