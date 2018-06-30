@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import scipy.misc
 from keras.preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import train_test_split
-from keras.applications.mobilenet import preprocess_input
+from keras.applications.mobilenetv2 import preprocess_input
 np.random.seed(1337)
 
 
@@ -26,8 +26,8 @@ BATCH_SIZE = 50
 LEARNING_RATE = 1e-2
 SAVE_INTERVAL = 1000
 RECREATE_TFRECORDS = True
-IMAGE_SIZE = 96
-EPOCHS = 5000
+IMAGE_SIZE = 128
+EPOCHS = 2500
 AUGMENT_FACTOR = 0
 
 # Command line arguments
@@ -55,8 +55,6 @@ print(args)
 DATA_GOOD_DIR = os.path.join(TRAIN_DATA_DIR, "good")
 DATA_BAD_DIR = os.path.join(TRAIN_DATA_DIR, "bad")
 
-input_shape = (1000,)#(IMAGE_SIZE, IMAGE_SIZE, 3)
-
 if __name__ == "__main__":
     tmp_labels = []
     tmp_images = []
@@ -69,7 +67,7 @@ if __name__ == "__main__":
         tmp_images += [scipy.misc.imresize(plt.imread(image_path, format='jpeg'), (IMAGE_SIZE, IMAGE_SIZE))]
         tmp_labels += [0]
 
-    images_train, images_val, labels_train, labels_val = train_test_split(tmp_images, tmp_labels, test_size=0.20, random_state=1)
+    images_train, images_val, labels_train, labels_val = train_test_split(tmp_images, tmp_labels, test_size=0.1, random_state=1)
 
     aug_images = []
     aug_labels = []
@@ -83,40 +81,25 @@ if __name__ == "__main__":
     images_train = aug_images
     labels_train = aug_labels
 
-    images_train = np.array(images_train)
+    images_train = np.array(images_train, dtype=np.float32)
     images_train = np.stack((images_train,)*3, -1)
     images_train = preprocess_input(images_train)
 
-    images_val = np.array(images_val)
+    images_val = np.array(images_val, dtype=np.float32)
     images_val = np.stack((images_val,)*3, -1)
     images_val = preprocess_input(images_val)
 
-
-    #labels = keras.utils.np_utils.to_categorical(labels, 2)
-
-    extractor_model = keras.applications.MobileNetV2(weights="imagenet", alpha=0.35, include_top=True, input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3))
-    #extractor_model.summary()
+    extractor_model = nail_model.get_extractor_model(IMAGE_SIZE)
     model = keras.Model(inputs=extractor_model.input, outputs=extractor_model.get_layer('global_average_pooling2d_1').output)
     bottleneck_features_train = model.predict(images_train)
     bottleneck_features_val = model.predict(images_val)
     print("Features shape:", bottleneck_features_train.shape)
 
 
-    model, graph = nail_model.get_model(input_shape)
+    model, graph = nail_model.get_top_model()
 
     model.compile(loss='binary_crossentropy', optimizer=keras.optimizers.SGD(lr=LEARNING_RATE, momentum=0.9, decay=1e-6, nesterov=True), metrics=['accuracy'])
-    #model.summary()
 
-    train_datagen = ImageDataGenerator()
-        #shear_range=0.2,
-        #zoom_range=0.2,
-        #rotation_range=180,
-        #horizontal_flip=True,
-        #vertical_flip=True)
-    val_datagen = ImageDataGenerator()
-
-    #train_generator = train_datagen.flow(data_train, labels_train, BATCH_SIZE)
-    #val_generator = val_datagen.flow(data_val, labels_val, BATCH_SIZE)
     model.fit(
         bottleneck_features_train,labels_train,
         validation_data=(bottleneck_features_val, labels_val),
@@ -127,7 +110,17 @@ if __name__ == "__main__":
     if not os.path.exists(MODEL_FINAL_SAVE_DIR):
         os.mkdir(MODEL_FINAL_SAVE_DIR)
 
-    model.save_weights('model_weights.h5')
-    with open('model_architecture.json', 'w') as f:
-        f.write(model.to_json())
+    model.save_weights(os.path.join(MODEL_FINAL_SAVE_DIR, MODEL_FILENAME))
+
+    output = model.predict(extractor_model.get_layer('global_average_pooling2d_1').output)
+
+    from keras.preprocessing import image
+    img = image.load_img("/home/aprams/deevio/deevio-classification/data/good/1522072665_good.jpeg", target_size=(model.input_shape[1], model.input_shape[2]))
+    img = image.img_to_array(img)
+    img = np.expand_dims(img, axis=0)
+    img = preprocess_input(img)
+    global graph
+    with graph.as_default():
+        result = model.predict(img)
+    print(model.predict(img))
 

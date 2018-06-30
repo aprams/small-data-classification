@@ -1,39 +1,30 @@
+import keras
 import tensorflow as tf
-from keras import applications
 from keras.models import Sequential
-from keras.layers import Flatten, Dense, Dropout, BatchNormalization, Activation, MaxPooling2D, Convolution2D, Input
-import numpy as np
-
-def get_model(input_shape, weights='imagenet'):
+from keras.layers import Dense
 
 
-    #base_model = applications.MobileNet(weights=weights, include_top=True, input_shape=input_shape, alpha=0.5)
-
+def get_top_model():
     new_model = Sequential()
 
-    # Got errors concatenating the models directly as it was possible in earlier versions, therefore copying layers
-    #for l in base_model.layers[:-2]:#44]:
-    #    new_model.add(l)
-
-    # LOCK THE TOP CONV LAYERS
-    #for layer in new_model.layers[:]:
-    #    layer.trainable = False
-    #new_model.add(MaxPooling2D(pool_size=(4,4)))
-    #new_model.add(Flatten(input_shape=base_model.output_shape[1:]))
-    #new_model.add(Dense(256))#, activation='relu'))
-    #new_model.add(BatchNormalization(momentum=0.99))
-    #new_model.add(Activation('relu'))
-    #new_model.add(Dropout(0.5))
-    #new_model.add(Dense(64))#, activation='relu'))
-    #new_model.add(BatchNormalization(momentum=0.99))
-    #new_model.add(Activation('relu'))
-    #new_model.add(Dropout(0.2, input_shape=(1280,)))
-    #new_model.add(Dense(256, activation='elu'))
-    new_model.add(Dropout(0.2, input_shape=(1280,)))
+    # Top model structure
     new_model.add(Dense(1, activation='sigmoid', input_shape=(1280,)))
-
 
     # Fixing https://github.com/keras-team/keras/issues/2397
     graph = tf.get_default_graph()
-
     return new_model, graph
+
+def get_extractor_model(image_size):
+    extractor_model = keras.applications.MobileNetV2(weights="imagenet", alpha=0.5, include_top=True, input_shape=(image_size, image_size, 3))
+    extractor_model = keras.Model(inputs=extractor_model.input, outputs=extractor_model.get_layer('global_average_pooling2d_1').output)
+    return extractor_model
+
+#def get_model(image_size, top_model_load_path=None):
+#    top_model, graph = get_top_model()
+#    if top_model_load_path is not None:
+#        top_model.load_weights(top_model_load_path)
+#    with graph.as_default():
+#        extractor_model = get_extractor_model(image_size)
+#    #output = top_model(extractor_model.output)
+#    model = keras.Model(inputs=extractor_model.input, outputs=top_model.output)
+#    return model, graph

@@ -1,6 +1,9 @@
+opencv-python
 tensorflow
 keras
 scipy
 numpy
 scikit-image
 flask
+imgaug
+

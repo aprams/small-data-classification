@@ -17,6 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         rsync \
         software-properties-common \
         unzip \
+	libsm6 \
+	libxrender1 \
+	libfontconfig1 \
         && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -40,10 +43,7 @@ RUN pip3 --no-cache-dir install \
 COPY requirements.txt /tmp/
 RUN pip3 install -r /tmp/requirements.txt
 
-COPY server.py /app/
-COPY training.py /app/
-COPY model/ app/model
-COPY nail_model.py /app/
+COPY . /app/
 
 WORKDIR /app/
 

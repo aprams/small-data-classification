@@ -5,10 +5,12 @@ import numpy as np
 import training
 import nail_model
 import json
+import scipy
+import matplotlib.pyplot as plt
 from keras.preprocessing import image
 from flask import Flask, request, redirect, flash, url_for, Session
 from werkzeug.utils import secure_filename
-from keras.applications.vgg16 import preprocess_input
+from keras.applications.mobilenetv2 import preprocess_input
 
 
 UPLOAD_FOLDER = '/uploads'
@@ -23,17 +25,26 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SESSION_TYPE'] = 'filesystem'
 app.secret_key = '07145d5b193b4d3b909f218bccd65be7'
 
-model, graph = nail_model.get_model((224, 224, 3), weights=None)
-model.load_weights(os.path.join(training.MODEL_FINAL_SAVE_DIR, training.MODEL_FILENAME))
+#model, graph = nail_model.get_model(training.IMAGE_SIZE, )
+top_model, graph = nail_model.get_top_model()
+top_model.load_weights(os.path.join(training.MODEL_FINAL_SAVE_DIR, training.MODEL_FILENAME))
+with graph.as_default():
+    extractor_model = nail_model.get_extractor_model(training.IMAGE_SIZE)
+
 
 def predict(file_path):
-    img = image.load_img(file_path, target_size=(224, 224))
-    img = image.img_to_array(img)
+    #img = image.load_img(file_path, target_size=(training.IMAGE_SIZE, training.IMAGE_SIZE))
+    #img = image.img_to_array(img)
+    img = scipy.misc.imresize(plt.imread(file_path, format='jpeg'), (training.IMAGE_SIZE, training.IMAGE_SIZE))
+    img = np.array(img, dtype=np.float32)
+    img = np.stack((img,)*3, -1)
     img = np.expand_dims(img, axis=0)
     img = preprocess_input(img)
+    #img = preprocess_input(img)
     global graph
     with graph.as_default():
-        result = model.predict(img)
+        bottleneck_features = extractor_model.predict(img)
+        result = top_model.predict(bottleneck_features)
     return result[0][0]
 
 def allowed_file(filename):
@@ -52,6 +63,7 @@ def predict_endpoint():
             json_result = {}
             prediction = predict(target_file_path)
             json_result['result'] = 'good' if prediction > DECISION_THRESHOLD else 'bad'
+            json_result['sigmoid_output'] = str(prediction)
             return json.dumps(json_result)
     else:
         return ''
@@ -77,6 +89,7 @@ def upload_file_endpoint():
             json_result = {}
             prediction = predict(target_file_path)
             json_result['result'] = 'good' if prediction > DECISION_THRESHOLD else 'bad'
+            json_result['sigmoid_output'] = str(prediction)
             return json.dumps(json_result)
     return '''
     <!doctype html>
