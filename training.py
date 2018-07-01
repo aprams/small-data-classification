@@ -77,15 +77,16 @@ if __name__ == "__main__":
     for i in range(args.augment_factor):
         aug_images += data_augment.seq.augment_images(images_train)
         aug_labels.extend(labels_train)
-    images_train = aug_images
+    images_train = np.array(aug_images, dtype=np.float32)
     labels_train = aug_labels
+    images_val = np.array(images_val, dtype=np.float32)
 
-    images_train = np.array(images_train, dtype=np.float32)
-    images_train = np.stack((images_train,)*3, -1)
+    if images_train.shape[-1] == 1 or len(images_train.shape) == 3:
+        images_train = np.stack((images_train,)*3, -1)
     images_train = preprocess_input(images_train)
 
-    images_val = np.array(images_val, dtype=np.float32)
-    images_val = np.stack((images_val,)*3, -1)
+    if images_val.shape[-1] == 1 or len(images_val.shape) == 3:
+        images_val = np.stack((images_val,)*3, -1)
     images_val = preprocess_input(images_val)
 
     extractor_model = nail_model.get_extractor_model(args.image_size)
