@@ -46,11 +46,12 @@ You can then either use the 'upload_predict' endpoint at:
 http://<DOCKER-IP>:5000/upload_predict
 ```
 
- where you can upload an image an have it classified or specify an image_url at the 'predict' endpoint like this: 
+where you can upload an image an have it classified or specify an image_url at the 'predict' endpoint like this: 
 
 ```
 curl http://<DOCKER-IP>:5000/predict?image_url=http://domain.com/image.jpeg
 ```
+The result will be a json with fields 'result' indicating 'good' or 'bad' (adjustable to your classes) and the 'sigmoid_output' field, being a value between 0 and 1, indicating the network's last layer's output.
 
 ## Built With
 
