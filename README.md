@@ -34,6 +34,12 @@ python training.py -h
 
 ## Deployment
 
+Run the docker image with:
+
+```
+docker build -t classifier-server . && docker run -p 5000:5000 classifier-server:latest
+```
+
 ## Built With
 
 * [Docker](https://www.docker.com/) - Container Framework
