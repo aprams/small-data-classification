@@ -5,6 +5,7 @@ import os
 import glob
 import numpy as np
 import keras
+import json
 import matplotlib.pyplot as plt
 import scipy.misc
 from keras.preprocessing.image import ImageDataGenerator
@@ -18,17 +19,16 @@ TRAIN_DATA_DIR = "/home/aprams/deevio-classification/data/"
 
 # Data folders
 MODEL_TMP_SAVE_DIR = "tmp"
-MODEL_FINAL_SAVE_DIR = "model"
+MODEL_SAVE_DIR = "model"
 MODEL_FILENAME = "model.h5"
+CONFIG_FILE_NAME = "config.json"
 
 # Training constants
 BATCH_SIZE = 50
 LEARNING_RATE = 1e-2
-SAVE_INTERVAL = 1000
-RECREATE_TFRECORDS = True
 IMAGE_SIZE = 128
 EPOCHS = 2500
-AUGMENT_FACTOR = 0
+AUGMENT_FACTOR = 4
 
 # Command line arguments
 parser = argparse.ArgumentParser()
@@ -36,48 +36,47 @@ parser.add_argument("-bs", "--batch-size", default=BATCH_SIZE, type=int)
 parser.add_argument("-lr", "--learning-rate", default=LEARNING_RATE, type=int)
 parser.add_argument("-ep", "--epochs", default=EPOCHS, type=int,
                     help="Number of epochs until stopping the training procedure")
-parser.add_argument("-rt", "--recreate-tfrecords", default=RECREATE_TFRECORDS, type=bool,
-                    help="Whether to recreate tfrecord files (usually only need this once)")
 parser.add_argument("-is", "--image-size", default=IMAGE_SIZE, type=int,
                     help="Preprocessed image sizes")
-parser.add_argument("-si", "--save-interval", default=SAVE_INTERVAL, type=int,
-                    help="Number of iterations between model saves")
 parser.add_argument("-td", "--train-dir", default=TRAIN_DATA_DIR, type=str,
                     help="Training data directory containing 'good' and 'bad' class folders")
-parser.add_argument("-mtd", "--model-tmp-dir", default=MODEL_TMP_SAVE_DIR, type=str,
-                    help="Where to save intermediate model states to")
-parser.add_argument("-mfd", "--model-final-dir", default=MODEL_FINAL_SAVE_DIR, type=str,
+parser.add_argument("-mfd", "--model-save-dir", default=MODEL_SAVE_DIR, type=str,
                     help="Where to save the final model to")
+parser.add_argument("-mfn", "--model-filename", default=MODEL_FILENAME, type=str,
+                    help="final model filename (should end with .h5)")
+parser.add_argument("-aug", "--augment-factor", default=AUGMENT_FACTOR, type=int,
+                    help="Iterations of Data augmentations, 0 for no augmentation")
 args = parser.parse_args()
 
 print(args)
 
-DATA_GOOD_DIR = os.path.join(TRAIN_DATA_DIR, "good")
-DATA_BAD_DIR = os.path.join(TRAIN_DATA_DIR, "bad")
+DATA_GOOD_DIR = os.path.join(args.train_dir, "good")
+DATA_BAD_DIR = os.path.join(args.train_dir, "bad")
 
 if __name__ == "__main__":
     tmp_labels = []
     tmp_images = []
     for image_path in glob.glob(os.path.join(DATA_GOOD_DIR, "*.jpeg")):
-        tmp_images += [scipy.misc.imresize(plt.imread(image_path, format='jpeg'), (IMAGE_SIZE, IMAGE_SIZE))]
+        tmp_images += [scipy.misc.imresize(plt.imread(image_path, format='jpeg'), (args.image_size, args.image_size))]
         tmp_labels += [1]
 
 
     for image_path in glob.glob(os.path.join(DATA_BAD_DIR, "*.jpeg")):
-        tmp_images += [scipy.misc.imresize(plt.imread(image_path, format='jpeg'), (IMAGE_SIZE, IMAGE_SIZE))]
+        tmp_images += [scipy.misc.imresize(plt.imread(image_path, format='jpeg'), (args.image_size, args.image_size))]
         tmp_labels += [0]
 
     images_train, images_val, labels_train, labels_val = train_test_split(tmp_images, tmp_labels, test_size=0.1, random_state=1)
 
     aug_images = []
     aug_labels = []
-    print(type(labels_train))
-    for i in range(AUGMENT_FACTOR):
+
+    # prefill images and labels with default data
+    aug_images += images_train
+    aug_labels += labels_train
+
+    for i in range(args.augment_factor):
         aug_images += data_augment.seq.augment_images(images_train)
         aug_labels.extend(labels_train)
-    if AUGMENT_FACTOR == 0:
-        aug_images = images_train
-        aug_labels = labels_train
     images_train = aug_images
     labels_train = aug_labels
 
@@ -89,7 +88,7 @@ if __name__ == "__main__":
     images_val = np.stack((images_val,)*3, -1)
     images_val = preprocess_input(images_val)
 
-    extractor_model = nail_model.get_extractor_model(IMAGE_SIZE)
+    extractor_model = nail_model.get_extractor_model(args.image_size)
     model = keras.Model(inputs=extractor_model.input, outputs=extractor_model.get_layer('global_average_pooling2d_1').output)
     bottleneck_features_train = model.predict(images_train)
     bottleneck_features_val = model.predict(images_val)
@@ -98,29 +97,18 @@ if __name__ == "__main__":
 
     model, graph = nail_model.get_top_model()
 
-    model.compile(loss='binary_crossentropy', optimizer=keras.optimizers.SGD(lr=LEARNING_RATE, momentum=0.9, decay=1e-6, nesterov=True), metrics=['accuracy'])
+    model.compile(loss='binary_crossentropy', optimizer=keras.optimizers.SGD(lr=args.learning_rate, momentum=0.9, decay=1e-6, nesterov=True), metrics=['accuracy'])
 
     model.fit(
         bottleneck_features_train,labels_train,
         validation_data=(bottleneck_features_val, labels_val),
         validation_steps=2,
-        steps_per_epoch=len(images_train)//BATCH_SIZE+1,
-        epochs=EPOCHS)
+        steps_per_epoch=len(images_train)//args.batch_size+1,
+        epochs=args.epochs)
 
-    if not os.path.exists(MODEL_FINAL_SAVE_DIR):
-        os.mkdir(MODEL_FINAL_SAVE_DIR)
+    if not os.path.exists(args.model_save_dir):
+        os.mkdir(args.model_save_dir)
 
-    model.save_weights(os.path.join(MODEL_FINAL_SAVE_DIR, MODEL_FILENAME))
-
-    output = model.predict(extractor_model.get_layer('global_average_pooling2d_1').output)
-
-    from keras.preprocessing import image
-    img = image.load_img("/home/aprams/deevio/deevio-classification/data/good/1522072665_good.jpeg", target_size=(model.input_shape[1], model.input_shape[2]))
-    img = image.img_to_array(img)
-    img = np.expand_dims(img, axis=0)
-    img = preprocess_input(img)
-    global graph
-    with graph.as_default():
-        result = model.predict(img)
-    print(model.predict(img))
-
+    model.save_weights(os.path.join(args.model_save_dir, args.model_filename))
+    with open(os.path.join(args.model_save_dir, CONFIG_FILE_NAME), 'w') as f:
+        f.write(json.dumps(vars(args)))

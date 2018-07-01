@@ -1,0 +1,1 @@
+{"augment_factor": 4, "model_save_dir": "model", "image_size": 128, "epochs": 2500, "train_dir": "/home/aprams/deevio-classification/data/", "learning_rate": 0.01, "batch_size": 50, "model_filename": "model.h5"}

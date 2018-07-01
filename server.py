@@ -12,35 +12,47 @@ from flask import Flask, request, redirect, flash, url_for, Session
 from werkzeug.utils import secure_filename
 from keras.applications.mobilenetv2 import preprocess_input
 
-
+# Upload settings
 UPLOAD_FOLDER = '/uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.mkdir(UPLOAD_FOLDER)
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 DECISION_THRESHOLD = 0.5
 
+# Flask settings
 sess = Session()
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SESSION_TYPE'] = 'filesystem'
 app.secret_key = '07145d5b193b4d3b909f218bccd65be7'
 
+# Training args
+with open(os.path.join(training.MODEL_SAVE_DIR, training.CONFIG_FILE_NAME), 'r') as f:
+    model_args = json.load(f)
+    image_size = int(model_args['image_size'])
+
+# Model loading
 top_model, graph = nail_model.get_top_model()
-top_model.load_weights(os.path.join(training.MODEL_FINAL_SAVE_DIR, training.MODEL_FILENAME))
+top_model.load_weights(os.path.join(model_args['model_save_dir'], model_args['model_filename']))
 with graph.as_default():
-    extractor_model = nail_model.get_extractor_model(training.IMAGE_SIZE)
+    extractor_model = nail_model.get_extractor_model(image_size)
 
 
 def predict(file_path):
-    img = scipy.misc.imresize(plt.imread(file_path, format='jpeg'), (training.IMAGE_SIZE, training.IMAGE_SIZE))
+    _, file_ext = os.path.splitext(file_path)
+    img = scipy.misc.imresize(plt.imread(file_path, format=file_ext), (image_size, image_size))
     img = np.array(img, dtype=np.float32)
-    img = np.stack((img,)*3, -1)
+    if img.shape[-1] < 3 or len(img.shape) != 3:
+        img = np.stack((img,)*3, -1)
     img = np.expand_dims(img, axis=0)
+    if img.shape[-1] == 4:
+        img = img[:, :, :, :-1]
     img = preprocess_input(img)
     with graph.as_default():
         bottleneck_features = extractor_model.predict(img)
         result = top_model.predict(bottleneck_features)
     return result[0][0]
+
 
 def allowed_file(filename):
     return '.' in filename and \

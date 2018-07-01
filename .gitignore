@@ -110,3 +110,5 @@ venv.bak/
 
 uploads/
 data/
+*.jpeg
+*.jpg
