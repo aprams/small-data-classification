@@ -26,9 +26,10 @@ CONFIG_FILE_NAME = "config.json"
 # Training constants
 BATCH_SIZE = 50
 LEARNING_RATE = 1e-2
-IMAGE_SIZE = 128
-EPOCHS = 2500
-AUGMENT_FACTOR = 4
+IMAGE_SIZE = 224
+EPOCHS = 25
+AUGMENT_FACTOR = 40
+TEST_SPLIT = 0.005
 
 # Command line arguments
 parser = argparse.ArgumentParser()
@@ -46,6 +47,8 @@ parser.add_argument("-mfn", "--model-filename", default=MODEL_FILENAME, type=str
                     help="final model filename (should end with .h5)")
 parser.add_argument("-aug", "--augment-factor", default=AUGMENT_FACTOR, type=int,
                     help="Iterations of Data augmentations, 0 for no augmentation")
+parser.add_argument("-ts", "--test-split", default=TEST_SPLIT, type=int,
+                    help="Split of the data that is used for validation")
 args = parser.parse_args()
 
 print(args)
@@ -65,7 +68,7 @@ if __name__ == "__main__":
         tmp_images += [scipy.misc.imresize(plt.imread(image_path, format='jpeg'), (args.image_size, args.image_size))]
         tmp_labels += [0]
 
-    images_train, images_val, labels_train, labels_val = train_test_split(tmp_images, tmp_labels, test_size=0.1, random_state=1)
+    images_train, images_val, labels_train, labels_val = train_test_split(tmp_images, tmp_labels, test_size=args.test_split, random_state=15)
 
     aug_images = []
     aug_labels = []

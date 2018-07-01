@@ -1,13 +1,14 @@
 import keras
 import tensorflow as tf
 from keras.models import Sequential
-from keras.layers import Dense
+from keras.layers import Dense, Dropout
 
 
 def get_top_model():
     new_model = Sequential()
 
     # Top model structure
+    new_model.add(Dropout(0.5, input_shape=(1280,)))
     new_model.add(Dense(1, activation='sigmoid', input_shape=(1280,)))
 
     # Fixing https://github.com/keras-team/keras/issues/2397
