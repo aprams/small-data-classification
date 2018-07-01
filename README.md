@@ -41,7 +41,13 @@ Run the docker image with:
 docker build -t classifier-server . && docker run -p 5000:5000 classifier-server:latest
 ```
 
-You can then either use the 'upload_predict' endpoint at 'http://<DOCKER-IP>:5000/upload_predict' where you can upload an image an have it classified or specify an image_url at the 'predict' endpoint like this: 
+You can then either use the 'upload_predict' endpoint at:
+```
+http://<DOCKER-IP>:5000/upload_predict
+```
+
+ where you can upload an image an have it classified or specify an image_url at the 'predict' endpoint like this: 
+
 ```
 curl http://<DOCKER-IP>:5000/predict?image_url=http://domain.com/image.jpeg
 ```
