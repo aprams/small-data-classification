@@ -22,6 +22,7 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
+In order to train with your own data, the default class paths are './data/class1' and './data/class2'. The name of the class folders doesn't matter, the path to them does though. You can specify your own path in the command line arguments.
 Afterwards you can run the training with:
 ```
 python training.py
