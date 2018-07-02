@@ -27,14 +27,14 @@ CONFIG_FILE_NAME = "config.json"
 BATCH_SIZE = 50
 LEARNING_RATE = 1e-2
 IMAGE_SIZE = 224
-EPOCHS = 25
+EPOCHS = 250
 AUGMENT_FACTOR = 40
 TEST_SPLIT = 0.005
 
 # Command line arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("-bs", "--batch-size", default=BATCH_SIZE, type=int)
-parser.add_argument("-lr", "--learning-rate", default=LEARNING_RATE, type=int)
+parser.add_argument("-lr", "--learning-rate", default=LEARNING_RATE, type=float)
 parser.add_argument("-ep", "--epochs", default=EPOCHS, type=int,
                     help="Number of epochs until stopping the training procedure")
 parser.add_argument("-is", "--image-size", default=IMAGE_SIZE, type=int,
