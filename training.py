@@ -15,7 +15,7 @@ np.random.seed(1337)
 
 
 # Training & Validation data location
-TRAIN_DATA_DIR = "/home/aprams/deevio-classification/data/"
+TRAIN_DATA_DIR = "./data/"
 
 # Data folders
 MODEL_TMP_SAVE_DIR = "tmp"
