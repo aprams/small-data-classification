@@ -4,12 +4,15 @@ from keras.models import Sequential
 from keras.layers import Dense, Dropout
 
 
-def get_top_model():
+def get_top_model(n_classes=1):
     new_model = Sequential()
 
     # Top model structure
     new_model.add(Dropout(0.5, input_shape=(1280,)))
-    new_model.add(Dense(1, activation='sigmoid', input_shape=(1280,)))
+    if n_classes == 1:
+        new_model.add(Dense(1, activation='sigmoid', input_shape=(1280,)))
+    else:
+        new_model.add(Dense(n_classes, activation='softmax', input_shape=(1280,)))
 
     # Fixing https://github.com/keras-team/keras/issues/2397
     graph = tf.get_default_graph()

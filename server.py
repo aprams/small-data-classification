@@ -3,7 +3,7 @@ import urllib
 import keras
 import numpy as np
 import training
-import nail_model
+import model as mdl
 import json
 import scipy
 import matplotlib.pyplot as plt
@@ -32,10 +32,10 @@ with open(os.path.join(training.MODEL_SAVE_DIR, training.CONFIG_FILE_NAME), 'r')
     image_size = int(model_args['image_size'])
 
 # Model loading
-top_model, graph = nail_model.get_top_model()
+top_model, graph = mdl.get_top_model()
 top_model.load_weights(os.path.join(model_args['model_save_dir'], model_args['model_filename']))
 with graph.as_default():
-    extractor_model = nail_model.get_extractor_model(image_size)
+    extractor_model = mdl.get_extractor_model(image_size)
 
 
 def predict(file_path):
