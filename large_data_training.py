@@ -123,7 +123,7 @@ if __name__ == "__main__":
         # TODO: Make this a parallelized operation
         file_paths = data_preprocessing.get_file_paths_from_data_folder(path, possible_endings=["*.npy"])
         unique_dir_names = list(set([os.path.dirname(file_paths[i]) for i in range(len(file_paths))]))
-        random.shuffle(unique_dir_names)
+        random.shuffle(file_paths)
         #print(file_paths)
         cur_idx = 0
         while(True):
@@ -135,7 +135,7 @@ if __name__ == "__main__":
             cur_idx += batch_size
             if cur_idx > len(file_paths):
                 cur_idx = cur_idx % len(file_paths)
-                random.shuffle(unique_dir_names)
+                random.shuffle(file_paths)
             yield (np.array(batch_data), keras.utils.to_categorical(np.array(batch_labels), num_classes=n_classes))
 
     train_data_gen = generator(train_bottleneck_dir, batch_size=BATCH_SIZE)
