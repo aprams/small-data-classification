@@ -11,6 +11,7 @@ import scipy.misc
 from keras.preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import train_test_split
 from keras.applications.mobilenetv2 import preprocess_input
+
 np.random.seed(1337)
 
 

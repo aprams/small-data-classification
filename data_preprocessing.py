@@ -22,10 +22,10 @@ seq = iaa.Sequential([
     iaa.Multiply((0.5, 1.5)),
     iaa.ContrastNormalization((0.5, 1.5)),
     iaa.Affine(
-        scale={"x": (0.9, 1.1), "y": (0.9, 1.1)},
-        translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},
-        rotate=(-25, 25),
-        shear=(-8, 8)
+        #scale={"x": (0.9, 1.1), "y": (0.9, 1.1)},
+        #translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},
+        rotate=(-45, 45),
+        #shear=(-8, 8)
     )
     ], random_order=True)
 
@@ -108,6 +108,7 @@ def generate_bottlenecks_split(data_folder, bottleneck_folder, model, preprocess
 
     files = get_file_paths_from_data_folder(data_folder)
     n_files = len(files)
+    print("Found {0} files in total".format(n_files))
     if train_split < 1.0:
         file_idx = np.random.permutation(n_files)
 
@@ -130,4 +131,4 @@ def generate_bottlenecks_split(data_folder, bottleneck_folder, model, preprocess
 if __name__ == "__main__":
     import model as mdl
     from keras.applications.mobilenetv2 import preprocess_input
-    generate_bottlenecks_split("./data/", "./bottlenecks/", mdl.get_extractor_model(224), preprocess_input, augment_fn=seq.augment_images, augment_count=40)
+    generate_bottlenecks_split("./TrainV8_in_struktur/", "./bottlenecks_train/", mdl.get_extractor_model(224), preprocess_input, augment_fn=seq.augment_images, augment_count=40)
