@@ -8,6 +8,7 @@ import keras
 import json
 import math
 import random
+import tensorflow as tf
 import matplotlib.pyplot as plt
 import scipy.misc
 from keras.preprocessing.image import ImageDataGenerator
@@ -66,12 +67,15 @@ args = parser.parse_args()
 print(args)
 
 
+def copy_folder_structure(data_dir, bottleneck_dir):
+    for path in [os.path.join(bottleneck_dir, dir) for dir in os.listdir(data_dir)]:
+        os.makedirs(path, exist_ok=True)
+
 if __name__ == "__main__":
 
     train_bottleneck_dir = BOTTLENECK_DATA_DIR + TRAIN_SUFFIX
     val_bottleneck_dir = BOTTLENECK_DATA_DIR + VAL_SUFFIX
     test_bottleneck_dir = BOTTLENECK_DATA_DIR + TEST_SUFFIX
-
 
     if REGENERATE_DATA:
         if os.path.exists(train_bottleneck_dir):
@@ -81,6 +85,9 @@ if __name__ == "__main__":
         if os.path.exists(test_bottleneck_dir):
             shutil.rmtree(test_bottleneck_dir)
 
+        copy_folder_structure(TRAIN_DATA_DIR, train_bottleneck_dir)
+        copy_folder_structure(VAL_DATA_DIR, val_bottleneck_dir)
+        copy_folder_structure(TEST_DATA_DIR, test_bottleneck_dir)
         extractor_model = mdl.get_extractor_model(224)
 
         train_files = data_preprocessing.get_file_paths_from_data_folder(TRAIN_DATA_DIR)
@@ -117,7 +124,39 @@ if __name__ == "__main__":
 
     model, graph = mdl.get_top_model(n_classes)
 
-    model.compile(loss='categorical_crossentropy', optimizer=keras.optimizers.Adam(lr=args.learning_rate), metrics=['accuracy'])#, momentum=0.9, decay=1e-6, nesterov=True), metrics=['accuracy'])
+    model.compile(loss='categorical_crossentropy', optimizer=tf.keras.optimizers.Adam(lr=args.learning_rate), metrics=['accuracy'])#, momentum=0.9, decay=1e-6, nesterov=True), metrics=['accuracy'])
+
+    # https://stackoverflow.com/questions/46135499/how-to-properly-combine-tensorflows-dataset-api-and-keras
+    def tfdata_generator(path, is_training, batch_size=128):
+        '''Construct a data generator using `tf.Dataset`. '''
+        file_paths = data_preprocessing.get_file_paths_from_data_folder(path, possible_endings=["*.npy"])
+        unique_dir_names = list(set([os.path.dirname(file_paths[i]) for i in range(len(file_paths))]))
+
+        def map_fn(item):
+            '''Preprocess raw data to trainable input. '''
+            #print(item.eval())
+            #print(item.decode())
+            x = np.load(item.decode()).astype(np.float32)#tf.reshape(tf.cast(image, tf.float32), (28, 28, 1))
+            y = unique_dir_names.index(os.path.dirname(item.decode()))#tf.one_hot(tf.cast(label, tf.uint8), n_classes)
+            return x, keras.utils.to_categorical(y, num_classes=n_classes).astype(np.uint8)#tf.one_hot(tf.cast(y, tf.uint8), n_classes)#(x, y)
+
+        def map_label(item):
+            y = unique_dir_names.index(os.path.dirname(item.decode()))
+            return np.array(y, dtype=np.int32)
+        dataset = tf.data.Dataset.from_tensor_slices(file_paths)
+
+        #if is_training:
+        #    dataset = dataset.shuffle(1000)  # depends on sample size
+        #dataset = dataset.map(lambda item: tuple([tf.py_func(map_fn, [item], [tf.float32,]), tf.py_func(map_label, [item], [tf.int32, ])]))#map_fn)
+        #dataset = dataset.batch(batch_size)
+        dataset = dataset.apply(tf.contrib.data.map_and_batch(
+            lambda item: tuple(tf.py_func(map_fn, [item], [tf.float32, np.uint8])), batch_size,
+            num_parallel_batches=12,  # cpu cores
+            drop_remainder=True if is_training else False))
+        dataset = dataset.repeat()
+        dataset = dataset.prefetch(tf.contrib.data.AUTOTUNE)
+
+        return dataset
 
     def generator(path, batch_size):
         # TODO: Make this a parallelized operation
@@ -138,22 +177,24 @@ if __name__ == "__main__":
                 random.shuffle(file_paths)
             yield (np.array(batch_data), keras.utils.to_categorical(np.array(batch_labels), num_classes=n_classes))
 
-    train_data_gen = generator(train_bottleneck_dir, batch_size=BATCH_SIZE)
+    train_data_gen = tfdata_generator(train_bottleneck_dir, is_training=True, batch_size=BATCH_SIZE)#generator(train_bottleneck_dir, batch_size=BATCH_SIZE)
 
     early_stopping_callback = EarlyStopping(patience=10)
-    fit_args = {'generator': train_data_gen,
+    fit_args = {
                 'epochs' : args.epochs,
                 'steps_per_epoch': int(math.ceil(len(data_preprocessing.get_file_paths_from_data_folder(
                     train_bottleneck_dir, possible_endings=["*.npy"]))/BATCH_SIZE))}
                 #'callbacks':[early_stopping_callback]}
 
+    use_validation = False
     if use_validation:
         val_data_gen = generator(val_bottleneck_dir, batch_size=BATCH_SIZE)
         fit_args['validation_data'] = val_data_gen
         fit_args['validation_steps'] = int(math.ceil(len(data_preprocessing.get_file_paths_from_data_folder(
                     val_bottleneck_dir, possible_endings=["*.npy"]))/BATCH_SIZE))
 
-    model.fit_generator(
+    model.fit(
+        train_data_gen.make_one_shot_iterator(),
         **fit_args
     )
 
